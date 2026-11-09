@@ -1,0 +1,81 @@
+name: Build unsigned IPAs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [OpenChat, OpenSongs, OpenTik]
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.47.9
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+
+      - name: Dependencies
+        working-directory: ${{ matrix.app }}
+        run: flutter pub get
+
+      - name: Build unsigned iOS app
+        working-directory: ${{ matrix.app }}
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        working-directory: ${{ matrix.app }}
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry "${{ matrix.app }}-unsigned.ipa" Payload
+          rm -rf Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-unsigned-ipa
+          path: ${{ matrix.app }}/${{ matrix.app }}-unsigned.ipa
+          retention-days: 1
+
+  # Publishes the OpenChat IPA to this repo's GitHub Releases.
+  # Tag is fixed (ios-unsigned-latest) so every build replaces the previous
+  # asset - the release URL is stable.
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download OpenChat IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenChat-unsigned-ipa
+          path: ipas
+
+      - name: Publish openchat-unsigned.ipa to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ls -lh ipas/
+          if gh release view ios-unsigned-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists - replacing the IPA asset."
+            gh release upload ios-unsigned-latest ipas/OpenChat-unsigned.ipa --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create ios-unsigned-latest ipas/OpenChat-unsigned.ipa --repo "$GITHUB_REPOSITORY" \
+              --title "OpenChat iOS (unsigned) - latest" \
+              --notes "Unsigned OpenChat IPA built automatically by GitHub Actions from this repo. Sideload with Sideloadly/SideStore using a free Apple ID (7-day certificate, max 3 sideloaded apps per device). The IPA is intentionally unsigned." \
+              --latest
+          fi

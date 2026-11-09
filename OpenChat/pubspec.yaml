@@ -1,0 +1,28 @@
+name: openchat
+description: "OpenChat messaging, calls, music and communities."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Pinned to the last releases that still support Flutter 3.24 / iOS 13.
+  # This keeps the project buildable on Odevio's remote Mac even when its
+  # default Flutter channel is older than this machine's SDK.
+  webview_flutter: 4.10.0
+  webview_flutter_android: 4.3.0
+  webview_flutter_wkwebview: 3.16.0
+  webview_flutter_platform_interface: 2.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/loading_ios.gif
